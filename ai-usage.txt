@@ -1,0 +1,129 @@
+AI Usage
+========
+
+Tool: Claude Code (Claude Opus 4.6 via CLI)
+
+I used Claude Code as a pair-programming assistant to speed things up.
+I knew what I wanted to build and how the pieces should fit together —
+the AI helped me get there faster by generating boilerplate, catching
+bugs I might've missed, and handling the repetitive parts so I could
+focus on the design decisions.
+
+Here's what I prompted and why.
+
+
+Prompts
+=======
+
+1. Initial scaffolding
+-----------------------
+"Build a full-stack Next.js 14 App Router app with TypeScript and
+Tailwind. Frontend calls internal API, API fetches external JSON.
+Never fetch the external URL from the frontend."
+
+I already had the architecture in my head — keep a strict boundary
+between frontend and backend through the API routes. I gave that
+constraint upfront and let the AI scaffold the files. I reviewed
+everything it generated and tweaked bits like using slugified titles
+as IDs instead of array indices, which makes the URLs more readable.
+
+
+2. Data transformation
+-----------------------
+"Extract these nested fields with ?? fallbacks, deduplicate by slug."
+
+The JSON has deeply nested optional fields and I didn't want to
+write the optional chaining boilerplate by hand for every field.
+I pointed AI at the exact JSON paths I needed and checked the
+output against the actual data to make sure nothing was wrong.
+
+
+3. Pagination and filtering
+-----------------------------
+"Add ?page= and ?limit= to the API. Add ?category= filtering.
+Update the frontend with pagination controls and a dropdown."
+
+Once the basic version was working I realised 978 datasets in one
+response wasn't great. I knew I wanted offset-based pagination
+and a category dropdown, so I described both and let the AI wire
+it through the types, API route, and components in one go. Saved
+me a lot of back-and-forth between files.
+
+
+4. Refactoring the big component
+----------------------------------
+"DatasetTable has too much code, break it into smaller components."
+
+The DatasetTable component had grown to ~370 lines — search bar,
+cards, table, pagination, icons, all in one file. I asked AI to
+split it into focused pieces: Icons, SearchBar, DatasetCard,
+Pagination, and a slimmed-down DatasetTable that just composes
+them. I could've done this myself but it's tedious refactoring
+work and AI handles it cleanly without introducing bugs. The
+result went from one 370-line file to five small files, each
+doing one thing.
+
+
+5. Re-render audit
+-------------------
+"Are there unnecessary re-renders?"
+
+After the refactor I wanted to check if splitting into components
+actually helped or if everything was still re-rendering together.
+AI traced through the props and found that expanding one row
+re-rendered all 20 rows because the callback functions were
+getting new references on every render. The fix was React.memo
+on the child components and useCallback on the handlers. I
+understood why this works — memo is useless without stable refs,
+so both pieces are needed together.
+
+
+6. Fixing the 12MB cache problem
+----------------------------------
+[Pasted the runtime error: "items over 2MB can not be cached"]
+
+The external JSON turned out to be 12MB, way over Next.js's 2MB
+fetch cache limit. I didn't know about this limit until I saw the
+error in the dev logs. I pasted the full error to AI and it
+suggested replacing Next.js ISR with a simple in-memory cache
+using module-level variables and a TTL. Made sense to me — it
+also gave us stale-while-error for free (if GitHub goes down,
+serve the last good data instead of crashing).
+
+
+7. Error handling review
+--------------------------
+"What if the API returns empty data?"
+
+I wanted to make sure the app doesn't break on edge cases. AI
+traced through every layer and found that the client-side fetch
+wasn't checking res.ok — so a 500 error response would get
+parsed as if it were valid data. Quick fix but I wouldn't have
+thought to check that specific path without asking.
+
+
+How I worked with AI
+====================
+
+I didn't just type "build me an app" and submit whatever came out.
+My workflow was more like:
+
+- I decided the architecture and constraints first, then told AI
+  what to build within those constraints.
+
+- I caught things AI got wrong. For example, the initial plan
+  suggested client-side filtering but the requirements clearly
+  said server-side search via the API. I corrected that before
+  any code was written.
+
+- I used it for the boring stuff — scaffolding, refactoring a
+  big component into smaller ones, wiring pagination through
+  multiple files. This is where AI saves the most time.
+
+- I used it for the tricky stuff — pasting error logs and
+  asking "what's wrong?" is way faster than googling cryptic
+  Next.js cache errors.
+
+- Every piece of code in this project, I can explain what it
+  does and why it's there. The AI wrote it faster than I would
+  have, but the decisions are mine.
